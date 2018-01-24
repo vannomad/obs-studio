@@ -2,6 +2,7 @@
 
 #define TIMING_TIME  0
 #define TIMING_FRAME 1
+#define TIMING_TRACK_MATTE 2
 
 enum fade_style {
 	FADE_STYLE_FADE_OUT_FADE_IN,
@@ -12,6 +13,7 @@ struct stinger_info {
 	obs_source_t *source;
 
 	obs_source_t *media_source;
+	obs_source_t *track_matte_source;
 
 	uint64_t duration_ns;
 	uint64_t duration_frames;
@@ -22,8 +24,16 @@ struct stinger_info {
 	float transition_b_mul;
 	bool transitioning;
 	bool transition_point_is_frame;
+	bool use_track_matte;
 	int monitoring_type;
 	enum fade_style fade_style;
+
+	gs_effect_t *matte_effect;
+	gs_eparam_t *ep_a_tex;
+	gs_eparam_t *ep_b_tex;
+	gs_eparam_t *ep_matte_tex;
+
+	gs_texrender_t *matte_tex;
 
 	float (*mix_a)(void *data, float t);
 	float (*mix_b)(void *data, float t);
@@ -53,15 +63,29 @@ static void stinger_update(void *data, obs_data_t *settings)
 			media_settings);
 	obs_data_release(media_settings);
 
-	int64_t point = obs_data_get_int(settings, "transition_point");
+	s->use_track_matte =
+		(obs_data_get_int(settings, "tp_type") == TIMING_TRACK_MATTE);
+	if (s->use_track_matte) {
+		const char *tm_path = obs_data_get_string(settings, "track_matte_path");
 
-	s->transition_point_is_frame =
+		obs_data_t *tm_media_settings = obs_data_create();
+		obs_data_set_string(tm_media_settings, "local_file", tm_path);
+
+		obs_source_release(s->track_matte_source);
+		s->track_matte_source = obs_source_create_private("ffmpeg_source",
+			NULL, tm_media_settings);
+		obs_data_release(tm_media_settings);
+	} else {
+		int64_t point = obs_data_get_int(settings, "transition_point");
+
+		s->transition_point_is_frame =
 			obs_data_get_int(settings, "tp_type") == TIMING_FRAME;
 
-	if (s->transition_point_is_frame)
-		s->transition_point_frame = (uint64_t)point;
-	else
-		s->transition_point_ns = (uint64_t)(point * 1000000LL);
+		if (s->transition_point_is_frame)
+			s->transition_point_frame = (uint64_t)point;
+		else
+			s->transition_point_ns = (uint64_t)(point * 1000000LL);
+	}
 
 	s->monitoring_type = (int)obs_data_get_int(settings,"audio_monitoring");
 	obs_source_set_monitoring_type(s->media_source, s->monitoring_type);
@@ -90,6 +114,28 @@ static void *stinger_create(obs_data_t *settings, obs_source_t *source)
 	s->mix_a = mix_a_fade_in_out;
 	s->mix_b = mix_b_fade_in_out;
 
+	char *effect_file = obs_module_file("stinger_matte_transition.effect");
+	char *error_string = NULL;
+	obs_enter_graphics();
+	s->matte_effect = gs_effect_create_from_file(effect_file, &error_string);
+	obs_leave_graphics();
+
+	if (!s->matte_effect) {
+		blog(LOG_ERROR, "Could not open stinger_matte_transition.effect: %s",
+			error_string);
+		bfree(error_string);
+		bfree(s);
+		return NULL;
+	}
+
+	bfree(effect_file);
+
+	s->ep_a_tex = gs_effect_get_param_by_name(s->matte_effect, "a_tex");
+	s->ep_b_tex = gs_effect_get_param_by_name(s->matte_effect, "b_tex");
+	s->ep_matte_tex = gs_effect_get_param_by_name(s->matte_effect, "matte_tex");
+
+	s->matte_tex = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
+
 	obs_transition_enable_fixed(s->source, true, 0);
 	obs_source_update(source, settings);
 	return s;
@@ -99,27 +145,75 @@ static void stinger_destroy(void *data)
 {
 	struct stinger_info *s = data;
 	obs_source_release(s->media_source);
+	obs_source_release(s->track_matte_source);
+
+	gs_texrender_destroy(s->matte_tex);
+
+	gs_effect_destroy(s->matte_effect);
+
 	bfree(s);
+}
+
+void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
+	float t, uint32_t cx, uint32_t cy)
+{
+	struct stinger_info *s = data;
+
+	uint32_t matte_cx, matte_cy;
+	float scale_x, scale_y;
+
+	gs_texrender_reset(s->matte_tex);
+
+	// Track matte media render
+	matte_cx = obs_source_get_width(s->track_matte_source);
+	matte_cy = obs_source_get_height(s->track_matte_source);
+	if (matte_cx > 0 && matte_cy > 0) {
+		scale_x = (float)cx / (float)matte_cx;
+		scale_y = (float)cy / (float)matte_cy;
+
+		if (gs_texrender_begin(s->matte_tex, cx, cy)) {
+			gs_matrix_push();
+			gs_matrix_scale3f(scale_x, scale_y, 1.0f);
+			obs_source_video_render(s->track_matte_source);
+			gs_matrix_pop();
+
+			gs_texrender_end(s->matte_tex);
+		}
+	}
+
+	gs_effect_set_texture(s->ep_a_tex, a);
+	gs_effect_set_texture(s->ep_b_tex, b);
+	gs_effect_set_texture(s->ep_matte_tex,
+		gs_texrender_get_texture(s->matte_tex));
+
+	while (gs_effect_loop(s->matte_effect, "StingerMatte"))
+		gs_draw_sprite(NULL, 0, cx, cy);
 }
 
 static void stinger_video_render(void *data, gs_effect_t *effect)
 {
 	struct stinger_info *s = data;
 
-	float t = obs_transition_get_time(s->source);
-	bool use_a = t < s->transition_point;
+	if (s->use_track_matte) {
+		obs_transition_video_render(s->source, stinger_matte_render);
+	}
+	else {
+		float t = obs_transition_get_time(s->source);
+		bool use_a = t < s->transition_point;
 
-	enum obs_transition_target target = use_a
-		? OBS_TRANSITION_SOURCE_A
-		: OBS_TRANSITION_SOURCE_B;
+		enum obs_transition_target target = use_a
+			? OBS_TRANSITION_SOURCE_A
+			: OBS_TRANSITION_SOURCE_B;
 
-	if (!obs_transition_video_render_direct(s->source, target))
-		return;
+		if (!obs_transition_video_render_direct(s->source, target))
+			return;
+	}
 
 	/* --------------------- */
 
 	float source_cx = (float)obs_source_get_width(s->source);
 	float source_cy = (float)obs_source_get_height(s->source);
+
 	uint32_t media_cx = obs_source_get_width(s->media_source);
 	uint32_t media_cy = obs_source_get_height(s->media_source);
 
@@ -217,9 +311,14 @@ static void stinger_transition_start(void *data)
 
 		proc_handler_t *ph =
 			obs_source_get_proc_handler(s->media_source);
+		proc_handler_t *matte_ph =
+			obs_source_get_proc_handler(s->track_matte_source);
 
 		if (s->transitioning) {
 			proc_handler_call(ph, "restart", &cd);
+			if (matte_ph) {
+				proc_handler_call(matte_ph, "restart", &cd);
+			}
 			return;
 		}
 
@@ -228,25 +327,38 @@ static void stinger_transition_start(void *data)
 		s->duration_ns = (uint64_t)calldata_int(&cd, "duration");
 		s->duration_frames = (uint64_t)calldata_int(&cd, "num_frames");
 
-		if (s->transition_point_is_frame)
-			s->transition_point = (float)(
+		if (s->use_track_matte) {
+			proc_handler_call(matte_ph, "get_duration", &cd);
+			uint64_t tm_duration_ns = (uint64_t)calldata_int(&cd, "duration");
+
+			s->duration_ns = max(s->duration_ns, tm_duration_ns);
+
+			s->transition_a_mul = 0.5f;
+			s->transition_b_mul = 0.5f;
+
+			obs_source_add_active_child(s->source, s->track_matte_source);
+		}
+		else {
+			if (s->transition_point_is_frame)
+				s->transition_point = (float)(
 				(long double)s->transition_point_frame /
-				(long double)s->duration_frames);
-		else
-			s->transition_point = (float)(
+					(long double)s->duration_frames);
+			else
+				s->transition_point = (float)(
 				(long double)s->transition_point_ns /
-				(long double)s->duration_ns);
+					(long double)s->duration_ns);
 
-		if (s->transition_point > 0.999f)
-			s->transition_point = 0.999f;
-		else if (s->transition_point < 0.001f)
-			s->transition_point = 0.001f;
+			if (s->transition_point > 0.999f)
+				s->transition_point = 0.999f;
+			else if (s->transition_point < 0.001f)
+				s->transition_point = 0.001f;
 
-		s->transition_a_mul = (1.0f / s->transition_point);
-		s->transition_b_mul = (1.0f / (1.0f - s->transition_point));
+			s->transition_a_mul = (1.0f / s->transition_point);
+			s->transition_b_mul = (1.0f / (1.0f - s->transition_point));
+		}
 
 		obs_transition_enable_fixed(s->source, true,
-				(uint32_t)(s->duration_ns / 1000000));
+			(uint32_t)(s->duration_ns / 1000000));
 
 		calldata_free(&cd);
 
@@ -263,6 +375,9 @@ static void stinger_transition_stop(void *data)
 	if (s->media_source)
 		obs_source_remove_active_child(s->source, s->media_source);
 
+	if (s->track_matte_source)
+		obs_source_remove_active_child(s->source, s->track_matte_source);
+
 	s->transitioning = false;
 }
 
@@ -272,6 +387,9 @@ static void stinger_enum_active_sources(void *data,
 	struct stinger_info *s = data;
 	if (s->media_source && s->transitioning)
 		enum_callback(s->source, s->media_source, param);
+
+	if (s->track_matte_source && s->transitioning)
+		enum_callback(s->source, s->track_matte_source, param);
 }
 
 static void stinger_enum_all_sources(void *data,
@@ -280,6 +398,9 @@ static void stinger_enum_all_sources(void *data,
 	struct stinger_info *s = data;
 	if (s->media_source)
 		enum_callback(s->source, s->media_source, param);
+
+	if (s->track_matte_source)
+		enum_callback(s->source, s->track_matte_source, param);
 }
 
 #define FILE_FILTER \
@@ -289,14 +410,21 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 		obs_property_t *p, obs_data_t *s)
 {
 	int64_t type = obs_data_get_int(s, "tp_type");
+
+	bool is_transition_point = (type == TIMING_TIME || type == TIMING_FRAME);
+	p = obs_properties_get(ppts, "track_matte_path");
+	obs_property_set_enabled(p, !is_transition_point);
+
 	p = obs_properties_get(ppts, "transition_point");
+	obs_property_set_enabled(p, is_transition_point);
 
 	if (type == TIMING_TIME)
 		obs_property_set_description(p,
-				obs_module_text("TransitionPoint"));
-	else
+			obs_module_text("TransitionPoint"));
+	else if (type == TIMING_FRAME)
 		obs_property_set_description(p,
-				obs_module_text("TransitionPointFrame"));
+			obs_module_text("TransitionPointFrame"));
+
 	return true;
 }
 
@@ -319,12 +447,20 @@ static obs_properties_t *stinger_properties(void *data)
 	obs_property_list_add_int(list,
 			obs_module_text("TransitionPointTypeFrame"),
 			TIMING_FRAME);
+	obs_property_list_add_int(list,
+			obs_module_text("TransitionPointTypeTrackMatte"),
+			TIMING_TRACK_MATTE);
 
 	obs_property_set_modified_callback(list, transition_point_type_modified);
 
 	obs_properties_add_int(ppts, "transition_point",
-			obs_module_text("TransitionPoint"),
-			0, 120000, 1);
+		obs_module_text("TransitionPoint"),
+		0, 120000, 1);
+
+	obs_properties_add_path(ppts, "track_matte_path",
+		obs_module_text("TrackMatteVideoFile"),
+		OBS_PATH_FILE,
+		FILE_FILTER, NULL);
 
 	obs_property_t *monitor_list = obs_properties_add_list(ppts,
 			"audio_monitoring", obs_module_text("AudioMonitoring"),

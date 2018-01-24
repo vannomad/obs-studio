@@ -1,0 +1,45 @@
+uniform float4x4  ViewProj;
+uniform texture2d a_tex;
+uniform texture2d b_tex;
+uniform texture2d matte_tex;
+
+sampler_state textureSampler {
+	Filter    = Linear;
+	AddressU  = Clamp;
+	AddressV  = Clamp;
+};
+
+struct VertData {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+#include "premultiplied.inc"
+
+VertData VSDefault(VertData v_in)
+{
+	VertData vert_out;
+	vert_out.pos = mul(float4(v_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = v_in.uv;
+	return vert_out;
+}
+
+float4 PSStingerMatte(VertData v_in) : TARGET
+{
+	float2 uv = v_in.uv;
+	float4 a_color = convert_pmalpha(a_tex.Sample(textureSampler, uv));
+	float4 b_color = convert_pmalpha(b_tex.Sample(textureSampler, uv));
+
+	float4 matte_color = convert_pmalpha(matte_tex.Sample(textureSampler, uv));
+
+	return lerp(a_color, b_color, matte_color);
+}
+
+technique StingerMatte
+{
+	pass
+	{
+		vertex_shader = VSDefault(v_in);
+		pixel_shader = PSStingerMatte(v_in);
+	}
+}
