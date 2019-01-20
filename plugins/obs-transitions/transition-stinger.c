@@ -63,11 +63,21 @@ static void stinger_update(void *data, obs_data_t *settings)
 			media_settings);
 	obs_data_release(media_settings);
 
+	int64_t point = obs_data_get_int(settings, "transition_point");
+
+	s->transition_point_is_frame =
+		obs_data_get_int(settings, "tp_type") == TIMING_FRAME;
+
+	if (s->transition_point_is_frame)
+		s->transition_point_frame = (uint64_t)point;
+	else
+		s->transition_point_ns = (uint64_t)(point * 1000000LL);
+
+	const char *tm_path = obs_data_get_string(settings, "track_matte_path");
+
 	s->use_track_matte =
 		(obs_data_get_int(settings, "tp_type") == TIMING_TRACK_MATTE);
 	if (s->use_track_matte) {
-		const char *tm_path = obs_data_get_string(settings, "track_matte_path");
-
 		obs_data_t *tm_media_settings = obs_data_create();
 		obs_data_set_string(tm_media_settings, "local_file", tm_path);
 
@@ -75,16 +85,6 @@ static void stinger_update(void *data, obs_data_t *settings)
 		s->track_matte_source = obs_source_create_private("ffmpeg_source",
 			NULL, tm_media_settings);
 		obs_data_release(tm_media_settings);
-	} else {
-		int64_t point = obs_data_get_int(settings, "transition_point");
-
-		s->transition_point_is_frame =
-			obs_data_get_int(settings, "tp_type") == TIMING_FRAME;
-
-		if (s->transition_point_is_frame)
-			s->transition_point_frame = (uint64_t)point;
-		else
-			s->transition_point_ns = (uint64_t)(point * 1000000LL);
 	}
 
 	s->monitoring_type = (int)obs_data_get_int(settings,"audio_monitoring");
@@ -327,6 +327,23 @@ static void stinger_transition_start(void *data)
 		s->duration_ns = (uint64_t)calldata_int(&cd, "duration");
 		s->duration_frames = (uint64_t)calldata_int(&cd, "num_frames");
 
+		if (s->transition_point_is_frame)
+			s->transition_point = (float)(
+			(long double)s->transition_point_frame /
+				(long double)s->duration_frames);
+		else
+			s->transition_point = (float)(
+			(long double)s->transition_point_ns /
+				(long double)s->duration_ns);
+
+		if (s->transition_point > 0.999f)
+			s->transition_point = 0.999f;
+		else if (s->transition_point < 0.001f)
+			s->transition_point = 0.001f;
+
+		s->transition_a_mul = (1.0f / s->transition_point);
+		s->transition_b_mul = (1.0f / (1.0f - s->transition_point));
+
 		if (s->use_track_matte) {
 			proc_handler_call(matte_ph, "get_duration", &cd);
 			uint64_t tm_duration_ns = (uint64_t)calldata_int(&cd, "duration");
@@ -337,24 +354,6 @@ static void stinger_transition_start(void *data)
 			s->transition_b_mul = 0.5f;
 
 			obs_source_add_active_child(s->source, s->track_matte_source);
-		}
-		else {
-			if (s->transition_point_is_frame)
-				s->transition_point = (float)(
-				(long double)s->transition_point_frame /
-					(long double)s->duration_frames);
-			else
-				s->transition_point = (float)(
-				(long double)s->transition_point_ns /
-					(long double)s->duration_ns);
-
-			if (s->transition_point > 0.999f)
-				s->transition_point = 0.999f;
-			else if (s->transition_point < 0.001f)
-				s->transition_point = 0.001f;
-
-			s->transition_a_mul = (1.0f / s->transition_point);
-			s->transition_b_mul = (1.0f / (1.0f - s->transition_point));
 		}
 
 		obs_transition_enable_fixed(s->source, true,
