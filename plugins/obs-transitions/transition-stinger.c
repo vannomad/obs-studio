@@ -170,6 +170,9 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
 	uint32_t matte_cx, matte_cy;
 	float scale_x, scale_y;
 
+	struct vec4 background;
+	vec4_zero(&background);
+
 	gs_texrender_reset(s->matte_tex);
 
 	// Track matte media render
@@ -182,6 +185,7 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
 		if (gs_texrender_begin(s->matte_tex, cx, cy)) {
 			gs_matrix_push();
 			gs_matrix_scale3f(scale_x, scale_y, 1.0f);
+			gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
 			obs_source_video_render(s->matte_source);
 			gs_matrix_pop();
 
