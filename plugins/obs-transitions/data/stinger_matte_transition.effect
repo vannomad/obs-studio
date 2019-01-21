@@ -33,7 +33,7 @@ float4 PSStingerMatte(VertData v_in) : TARGET
 	float4 matte_color = convert_pmalpha(matte_tex.Sample(textureSampler, uv));
 	float matte_luma = matte_color.x * matte_color.y * matte_color.z;
 
-	return (a_color * (1.0f - matte_luma)) + (b_color * matte_luma);
+	return lerp(a_color, b_color, matte_luma);
 }
 
 technique StingerMatte
