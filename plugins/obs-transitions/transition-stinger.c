@@ -32,10 +32,8 @@ struct stinger_info {
 	gs_eparam_t *ep_a_tex;
 	gs_eparam_t *ep_b_tex;
 	gs_eparam_t *ep_matte_tex;
-	gs_eparam_t *ep_media_tex;
 
 	gs_texrender_t *matte_tex;
-	gs_texrender_t *media_tex;
 
 	float (*mix_a)(void *data, float t);
 	float (*mix_b)(void *data, float t);
@@ -143,11 +141,8 @@ static void *stinger_create(obs_data_t *settings, obs_source_t *source)
 	s->ep_b_tex = gs_effect_get_param_by_name(s->matte_effect, "b_tex");
 	s->ep_matte_tex =
 		gs_effect_get_param_by_name(s->matte_effect, "matte_tex");
-	s->ep_media_tex =
-		gs_effect_get_param_by_name(s->matte_effect, "media_tex");
 
 	s->matte_tex = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
-	s->media_tex = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 
 	obs_transition_enable_fixed(s->source, true, 0);
 	obs_source_update(source, settings);
@@ -160,7 +155,6 @@ static void stinger_destroy(void *data)
 	obs_source_release(s->media_source);
 	obs_source_release(s->matte_source);
 
-	gs_texrender_destroy(s->media_tex);
 	gs_texrender_destroy(s->matte_tex);
 
 	gs_effect_destroy(s->matte_effect);
@@ -173,26 +167,21 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
 {
 	struct stinger_info *s = data;
 
-	uint32_t matte_cx, matte_cy, media_cx, media_cy;
-	float matte_scale_x, matte_scale_y, media_scale_x, media_scale_y;
+	uint32_t matte_cx, matte_cy;
+	float scale_x, scale_y;
 
 	gs_texrender_reset(s->matte_tex);
-	gs_texrender_reset(s->media_tex);
-
-	struct vec4 background = {0};
-	vec4_zero(&background);
 
 	// Track matte media render
 	matte_cx = obs_source_get_width(s->matte_source);
 	matte_cy = obs_source_get_height(s->matte_source);
 	if (matte_cx > 0 && matte_cy > 0) {
-		matte_scale_x = (float)cx / (float)matte_cx;
-		matte_scale_y = (float)cy / (float)matte_cy;
+		scale_x = (float)cx / (float)matte_cx;
+		scale_y = (float)cy / (float)matte_cy;
 
 		if (gs_texrender_begin(s->matte_tex, cx, cy)) {
 			gs_matrix_push();
-			gs_matrix_scale3f(matte_scale_x, matte_scale_y, 1.0f);
-			gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
+			gs_matrix_scale3f(scale_x, scale_y, 1.0f);
 			obs_source_video_render(s->matte_source);
 			gs_matrix_pop();
 
@@ -200,30 +189,10 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
 		}
 	}
 
-	// Stinger media render
-	media_cx = obs_source_get_width(s->media_source);
-	media_cy = obs_source_get_height(s->media_source);
-	if (media_cx > 0 && media_cy > 0) {
-		media_scale_x = (float)cx / (float)media_cx;
-		media_scale_y = (float)cy / (float)media_cy;
-
-		if (gs_texrender_begin(s->media_tex, cx, cy)) {
-			gs_matrix_push();
-			gs_matrix_scale3f(media_scale_x, media_scale_y, 1.0f);
-			gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
-			obs_source_video_render(s->media_source);
-			gs_matrix_pop();
-
-			gs_texrender_end(s->media_tex);
-		}
-	}
-
 	gs_effect_set_texture(s->ep_a_tex, a);
 	gs_effect_set_texture(s->ep_b_tex, b);
 	gs_effect_set_texture(s->ep_matte_tex,
 		gs_texrender_get_texture(s->matte_tex));
-	gs_effect_set_texture(s->ep_media_tex,
-		gs_texrender_get_texture(s->media_tex));
 
 	while (gs_effect_loop(s->matte_effect, "StingerMatte"))
 		gs_draw_sprite(NULL, 0, cx, cy);
@@ -246,26 +215,26 @@ static void stinger_video_render(void *data, gs_effect_t *effect)
 
 		if (!obs_transition_video_render_direct(s->source, target))
 			return;
-
-		/* --------------------- */
-
-		float source_cx = (float)obs_source_get_width(s->source);
-		float source_cy = (float)obs_source_get_height(s->source);
-
-		uint32_t media_cx = obs_source_get_width(s->media_source);
-		uint32_t media_cy = obs_source_get_height(s->media_source);
-
-		if (!media_cx || !media_cy)
-			return;
-
-		float scale_x = source_cx / (float)media_cx;
-		float scale_y = source_cy / (float)media_cy;
-
-		gs_matrix_push();
-		gs_matrix_scale3f(scale_x, scale_y, 1.0f);
-		obs_source_video_render(s->media_source);
-		gs_matrix_pop();
 	}
+
+	/* --------------------- */
+
+	float source_cx = (float)obs_source_get_width(s->source);
+	float source_cy = (float)obs_source_get_height(s->source);
+
+	uint32_t media_cx = obs_source_get_width(s->media_source);
+	uint32_t media_cy = obs_source_get_height(s->media_source);
+
+	if (!media_cx || !media_cy)
+		return;
+
+	float scale_x = source_cx / (float)media_cx;
+	float scale_y = source_cy / (float)media_cy;
+
+	gs_matrix_push();
+	gs_matrix_scale3f(scale_x, scale_y, 1.0f);
+	obs_source_video_render(s->media_source);
+	gs_matrix_pop();
 
 	UNUSED_PARAMETER(effect);
 }

@@ -2,7 +2,6 @@ uniform float4x4  ViewProj;
 uniform texture2d a_tex;
 uniform texture2d b_tex;
 uniform texture2d matte_tex;
-uniform texture2d media_tex;
 
 sampler_state textureSampler {
 	Filter    = Linear;
@@ -28,21 +27,13 @@ VertData VSDefault(VertData v_in)
 float4 PSStingerMatte(VertData v_in) : TARGET
 {
 	float2 uv = v_in.uv;
-
 	float4 a_color = convert_pmalpha(a_tex.Sample(textureSampler, uv));
 	float4 b_color = convert_pmalpha(b_tex.Sample(textureSampler, uv));
 
-	float4 matte_color = convert_pmalpha(
-		matte_tex.Sample(textureSampler, uv)
-	);
-	float4 media_color = convert_pmalpha(
-		media_tex.Sample(textureSampler, uv)
-	);
-
-	// Surely there a better way to do this
+	float4 matte_color = convert_pmalpha(matte_tex.Sample(textureSampler, uv));
 	float matte_luma = matte_color.x * matte_color.y * matte_color.z;
 
-	return (lerp(a_color, b_color, matte_luma) * (1.0 - media_color.w)) + media_color;
+	return lerp(a_color, b_color, matte_luma);
 }
 
 technique StingerMatte
