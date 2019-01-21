@@ -361,7 +361,10 @@ static void stinger_transition_start(void *data)
 			uint64_t tm_duration_ns =
 				(uint64_t)calldata_int(&cd, "duration");
 
-			s->duration_ns = max(s->duration_ns, tm_duration_ns);
+			s->duration_ns = (
+				(tm_duration_ns > s->duration_ns) ?
+				(tm_duration_ns) : (s->duration_ns)
+			);
 
 			s->transition_a_mul = 0.5f;
 			s->transition_b_mul = 0.5f;
