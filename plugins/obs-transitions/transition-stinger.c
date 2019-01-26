@@ -428,19 +428,20 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 {
 	int64_t type = obs_data_get_int(s, "tp_type");
 
-	bool is_transition_point =
-		(type == TIMING_TIME || type == TIMING_FRAME);
-	p = obs_properties_get(ppts, "track_matte_path");
-	obs_property_set_enabled(p, !is_transition_point);
+	obs_property_t *prop_transition_point =
+		obs_properties_get(ppts, "transition_point");
+	obs_property_t *prop_matte_path =
+		obs_properties_get(ppts, "track_matte_path");
 
-	p = obs_properties_get(ppts, "transition_point");
-	obs_property_set_enabled(p, is_transition_point);
+	bool is_track_matte = (type == TIMING_TRACK_MATTE);
+	obs_property_set_visible(prop_matte_path, is_track_matte);
+	obs_property_set_visible(prop_transition_point, !is_track_matte);
 
 	if (type == TIMING_TIME)
-		obs_property_set_description(p,
+		obs_property_set_description(prop_transition_point,
 			obs_module_text("TransitionPoint"));
 	else if (type == TIMING_FRAME)
-		obs_property_set_description(p,
+		obs_property_set_description(prop_transition_point,
 			obs_module_text("TransitionPointFrame"));
 
 	return true;
