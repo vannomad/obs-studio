@@ -29,9 +29,14 @@ float4 PSStingerMatte(VertData v_in) : TARGET
 	float2 uv = v_in.uv;
 	float4 a_color = convert_pmalpha(a_tex.Sample(textureSampler, uv));
 	float4 b_color = convert_pmalpha(b_tex.Sample(textureSampler, uv));
-
 	float4 matte_color = convert_pmalpha(matte_tex.Sample(textureSampler, uv));
-	float matte_luma = matte_color.x * matte_color.y * matte_color.z;
+
+	// RGB -> Luma conversion using Rec. 709 factors
+	float matte_luma = (
+		(matte_color.x * 0.2126) +
+		(matte_color.y * 0.7152) +
+		(matte_color.z * 0.0722)
+	);
 
 	return lerp(a_color, b_color, matte_luma);
 }
