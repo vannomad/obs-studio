@@ -366,8 +366,7 @@ static void stinger_transition_start(void *data)
 				(tm_duration_ns) : (s->duration_ns)
 			);
 
-			s->transition_a_mul = 0.5f;
-			s->transition_b_mul = 0.5f;
+			s->transition_a_mul = s->transition_b_mul = 1.0f;
 
 			obs_source_add_active_child(
 				s->source, s->matte_source
