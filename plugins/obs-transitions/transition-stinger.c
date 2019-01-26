@@ -432,10 +432,18 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 		obs_properties_get(ppts, "transition_point");
 	obs_property_t *prop_matte_path =
 		obs_properties_get(ppts, "track_matte_path");
+	obs_property_t *prop_audio_fade_style =
+		obs_properties_get(ppts, "audio_fade_style");
 
 	bool is_track_matte = (type == TIMING_TRACK_MATTE);
 	obs_property_set_visible(prop_matte_path, is_track_matte);
 	obs_property_set_visible(prop_transition_point, !is_track_matte);
+
+	// Setting a custom audio transition point is not supported
+	// in track matte mode. Hence we're disabling the option in
+	// the "Audio Fade Style" dropdown selector.
+	obs_property_list_item_disable(prop_audio_fade_style,
+		FADE_STYLE_FADE_OUT_FADE_IN, is_track_matte);
 
 	if (type == TIMING_TIME)
 		obs_property_set_description(prop_transition_point,
