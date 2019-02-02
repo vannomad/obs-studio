@@ -2,7 +2,6 @@ uniform float4x4  ViewProj;
 uniform texture2d a_tex;
 uniform texture2d b_tex;
 uniform texture2d matte_tex;
-uniform bool matte_invert;
 
 sampler_state textureSampler {
 	Filter    = Linear;
@@ -38,9 +37,6 @@ float4 PSStingerMatte(VertData v_in) : TARGET
 		(matte_color.y * 0.7152) +
 		(matte_color.z * 0.0722)
 	);
-
-	// Invert Matte (or not)
-	matte_luma = abs((invert_matte * 254) - matte_luma);
 
 	return lerp(a_color, b_color, matte_luma);
 }
