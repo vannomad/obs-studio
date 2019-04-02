@@ -148,6 +148,11 @@ enum obs_balance_type {
 /** Used internally for audio submixing */
 #define OBS_SOURCE_SUBMIX (1 << 12)
 
+/**
+ * Source type is a track and should not be shown to the user
+ */
+#define OBS_SOURCE_TRACK (1 << 13)
+
 /** @} */
 
 typedef void (*obs_source_enum_proc_t)(obs_source_t *parent,
