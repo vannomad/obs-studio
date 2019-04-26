@@ -78,8 +78,8 @@ static const char *source_signals[] = {
 	"void transition_start(ptr source)",
 	"void transition_video_stop(ptr source)",
 	"void transition_stop(ptr source)",
-	NULL,
-};
+	"void monitoring_type(ptr source, int mon_type)",
+	NULL};
 
 bool obs_source_init_context(struct obs_source *source, obs_data_t *settings,
 			     const char *name, obs_data_t *hotkey_data,
@@ -4551,12 +4551,24 @@ void obs_source_set_monitoring_type(obs_source_t *source,
 {
 	bool was_on;
 	bool now_on;
+	int index;
+	struct calldata data;
+	uint8_t stack[128];
 
 	if (!obs_source_valid(source, "obs_source_set_monitoring_type"))
 		return;
+
+	calldata_init_fixed(&data, stack, sizeof(stack));
+	calldata_set_ptr(&data, "source", source);
+	calldata_set_int(&data, "mon_type", type);
+
+	signal_handler_signal(source->context.signals, "monitoring_type",
+			      &data);
+
+	type = (int)calldata_int(&data, "mon_type");
+
 	if (source->monitoring_type == type)
 		return;
-
 	was_on = source->monitoring_type != OBS_MONITORING_TYPE_NONE;
 	now_on = type != OBS_MONITORING_TYPE_NONE;
 
@@ -4568,7 +4580,6 @@ void obs_source_set_monitoring_type(obs_source_t *source,
 			source->monitor = NULL;
 		}
 	}
-
 	source->monitoring_type = type;
 }
 
