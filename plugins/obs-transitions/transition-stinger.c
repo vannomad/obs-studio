@@ -280,6 +280,10 @@ static bool stinger_audio_render(void *data, uint64_t *ts_out,
 	struct stinger_info *s = data;
 	uint64_t ts = 0;
 
+	if (!s) {
+		return false;
+	}
+
 	if (!obs_source_audio_pending(s->media_source)) {
 		ts = obs_source_get_audio_timestamp(s->media_source);
 		if (!ts)
