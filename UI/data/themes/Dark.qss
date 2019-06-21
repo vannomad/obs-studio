@@ -100,12 +100,14 @@ QMenuBar::item {
     background-color: rgb(58,57,58); /* dark */
 }
 
-QListWidget::item:selected:!active {
+QListWidget::item:selected:!active,
+SourceTree::item:selected:!active {
     color: rgb(255, 255, 255);
     background-color: rgb(48,47,48);
 }
 
-QListWidget QLineEdit {
+QListWidget QLineEdit,
+SourceTree QLineEdit {
     padding-top: 0px;
     padding-bottom: 0px;
     padding-right: 0;
@@ -113,7 +115,6 @@ QListWidget QLineEdit {
     border: none;
     border-radius: none;
 }
-
 
 /* Dock Widget */
 
@@ -668,6 +669,11 @@ OBSBasicSettings {
     qproperty-videoIcon: url(./Dark/settings/video.svg);
     qproperty-hotkeysIcon: url(./Dark/settings/hotkeys.svg);
     qproperty-advancedIcon: url(./Dark/settings/advanced.svg);
+}
+
+OBSBasicSettings QListWidget::item {
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 /* Locked CheckBox */

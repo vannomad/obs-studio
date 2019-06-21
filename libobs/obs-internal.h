@@ -240,14 +240,13 @@ struct obs_tex_frame {
 struct obs_core_video {
 	graphics_t                      *graphics;
 	gs_stagesurf_t                  *copy_surfaces[NUM_TEXTURES];
-	gs_texture_t                    *render_textures[NUM_TEXTURES];
-	gs_texture_t                    *output_textures[NUM_TEXTURES];
-	gs_texture_t                    *convert_textures[NUM_TEXTURES];
-	gs_texture_t                    *convert_uv_textures[NUM_TEXTURES];
-	bool                            textures_rendered[NUM_TEXTURES];
-	bool                            textures_output[NUM_TEXTURES];
+	gs_texture_t                    *render_texture;
+	gs_texture_t                    *output_texture;
+	gs_texture_t                    *convert_texture;
+	gs_texture_t                    *convert_uv_texture;
+	bool                            texture_rendered;
 	bool                            textures_copied[NUM_TEXTURES];
-	bool                            textures_converted[NUM_TEXTURES];
+	bool                            texture_converted;
 	bool                            using_nv12_tex;
 	struct circlebuf                vframe_info_buffer;
 	struct circlebuf                vframe_info_buffer_gpu;
@@ -1042,7 +1041,7 @@ extern void obs_encoder_remove_output(struct obs_encoder *encoder,
 extern bool start_gpu_encode(obs_encoder_t *encoder);
 extern void stop_gpu_encode(obs_encoder_t *encoder);
 
-extern void do_encode(struct obs_encoder *encoder, struct encoder_frame *frame);
+extern bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame);
 extern void send_off_encoder_packet(obs_encoder_t *encoder, bool success,
 		bool received, struct encoder_packet *pkt);
 
