@@ -473,6 +473,9 @@ static obs_properties_t *stinger_properties(void *data)
 				  TIMING_TIME);
 	obs_property_list_add_int(
 		p, obs_module_text("TransitionPointTypeFrame"), TIMING_FRAME);
+	obs_property_list_add_int(
+		p, obs_module_text("TransitionPointTypeTrackMatte"),
+		TIMING_TRACK_MATTE);
 
 	obs_property_set_modified_callback(p, transition_point_type_modified);
 
@@ -480,6 +483,10 @@ static obs_properties_t *stinger_properties(void *data)
 				   obs_module_text("TransitionPoint"), 0,
 				   120000, 1);
 	obs_property_int_set_suffix(p, " ms");
+
+	obs_properties_add_path(ppts, "track_matte_path",
+				obs_module_text("TrackMatteVideoFile"),
+				OBS_PATH_FILE, FILE_FILTER, NULL);
 
 	obs_property_t *monitor_list = obs_properties_add_list(
 		ppts, "audio_monitoring", obs_module_text("AudioMonitoring"),
