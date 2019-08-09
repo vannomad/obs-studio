@@ -88,6 +88,9 @@ static void stinger_update(void *data, obs_data_t *settings)
 			"ffmpeg_source", NULL, tm_media_settings
 		);
 		obs_data_release(tm_media_settings);
+
+		// no need to output sound from the matte video
+		obs_source_set_muted(s->matte_source, true);
 	}
 
 	s->monitoring_type =
@@ -376,8 +379,6 @@ static void stinger_transition_start(void *data)
 				(tm_duration_ns) : (s->duration_ns)
 			);
 
-			s->transition_a_mul = s->transition_b_mul = 1.0f;
-
 			obs_source_add_active_child(
 				s->source, s->matte_source
 			);
@@ -445,26 +446,23 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 		obs_properties_get(ppts, "track_matte_path");
 	obs_property_t *prop_invert_matte =
 		obs_properties_get(ppts, "invert_matte");
-	obs_property_t *prop_audio_fade_style =
-		obs_properties_get(ppts, "audio_fade_style");
 
 	bool is_track_matte = (type == TIMING_TRACK_MATTE);
 	obs_property_set_visible(prop_matte_path, is_track_matte);
 	obs_property_set_visible(prop_invert_matte, is_track_matte);
-	obs_property_set_visible(prop_transition_point, !is_track_matte);
 
-	// Setting a custom audio transition point is not supported
-	// in track matte mode. Hence we're disabling the option in
-	// the "Audio Fade Style" dropdown selector.
-	obs_property_list_item_disable(prop_audio_fade_style,
-		FADE_STYLE_FADE_OUT_FADE_IN, is_track_matte);
-
-	if (type == TIMING_TIME)
+	if (type == TIMING_TRACK_MATTE)
 		obs_property_set_description(
-			p, obs_module_text("TransitionPoint"));
+			prop_transition_point,
+			obs_module_text("AudioTransitionPoint"));
+	else if (type == TIMING_TIME)
+		obs_property_set_description(
+			prop_transition_point,
+			obs_module_text("TransitionPoint"));
 	else
 		obs_property_set_description(
-			p, obs_module_text("TransitionPointFrame"));
+			prop_transition_point,
+			obs_module_text("TransitionPointFrame"));
 	return true;
 }
 
