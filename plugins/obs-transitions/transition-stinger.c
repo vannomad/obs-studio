@@ -22,6 +22,7 @@ struct stinger_info {
 	bool transitioning;
 	bool transition_point_is_frame;
 	bool use_track_matte;
+	bool invert_matte;
 	int monitoring_type;
 	enum fade_style fade_style;
 
@@ -29,6 +30,7 @@ struct stinger_info {
 	gs_eparam_t *ep_a_tex;
 	gs_eparam_t *ep_b_tex;
 	gs_eparam_t *ep_matte_tex;
+	gs_eparam_t *ep_invert_matte;
 
 	gs_texrender_t *matte_tex;
 
@@ -75,6 +77,8 @@ static void stinger_update(void *data, obs_data_t *settings)
 
 	s->use_track_matte =
 		(obs_data_get_int(settings, "tp_type") == TIMING_TRACK_MATTE);
+	s->invert_matte = obs_data_get_bool(settings, "invert_matte");
+
 	obs_source_release(s->matte_source);
 	if (s->use_track_matte) {
 		obs_data_t *tm_media_settings = obs_data_create();
@@ -138,6 +142,8 @@ static void *stinger_create(obs_data_t *settings, obs_source_t *source)
 	s->ep_b_tex = gs_effect_get_param_by_name(s->matte_effect, "b_tex");
 	s->ep_matte_tex =
 		gs_effect_get_param_by_name(s->matte_effect, "matte_tex");
+	s->ep_invert_matte =
+		gs_effect_get_param_by_name(s->matte_effect, "invert_matte");
 
 	s->matte_tex = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 
@@ -194,6 +200,7 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
 	gs_effect_set_texture(s->ep_b_tex, b);
 	gs_effect_set_texture(s->ep_matte_tex,
 		gs_texrender_get_texture(s->matte_tex));
+	gs_effect_set_bool(s->ep_invert_matte, s->invert_matte);
 
 	while (gs_effect_loop(s->matte_effect, "StingerMatte"))
 		gs_draw_sprite(NULL, 0, cx, cy);
@@ -436,11 +443,14 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 		obs_properties_get(ppts, "transition_point");
 	obs_property_t *prop_matte_path =
 		obs_properties_get(ppts, "track_matte_path");
+	obs_property_t *prop_invert_matte =
+		obs_properties_get(ppts, "invert_matte");
 	obs_property_t *prop_audio_fade_style =
 		obs_properties_get(ppts, "audio_fade_style");
 
 	bool is_track_matte = (type == TIMING_TRACK_MATTE);
 	obs_property_set_visible(prop_matte_path, is_track_matte);
+	obs_property_set_visible(prop_invert_matte, is_track_matte);
 	obs_property_set_visible(prop_transition_point, !is_track_matte);
 
 	// Setting a custom audio transition point is not supported
@@ -487,6 +497,9 @@ static obs_properties_t *stinger_properties(void *data)
 	obs_properties_add_path(ppts, "track_matte_path",
 				obs_module_text("TrackMatteVideoFile"),
 				OBS_PATH_FILE, FILE_FILTER, NULL);
+
+	obs_properties_add_bool(ppts, "invert_matte",
+				obs_module_text("InvertTrackMatte"));
 
 	obs_property_t *monitor_list = obs_properties_add_list(
 		ppts, "audio_monitoring", obs_module_text("AudioMonitoring"),
