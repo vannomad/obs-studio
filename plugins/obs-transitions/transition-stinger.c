@@ -72,8 +72,7 @@ static void stinger_update(void *data, obs_data_t *settings)
 	else
 		s->transition_point_ns = (uint64_t)(point * 1000000LL);
 
-	const char *tm_path =
-		obs_data_get_string(settings, "track_matte_path");
+	const char *tm_path = obs_data_get_string(settings, "track_matte_path");
 
 	s->use_track_matte =
 		(obs_data_get_int(settings, "tp_type") == TIMING_TRACK_MATTE);
@@ -85,8 +84,7 @@ static void stinger_update(void *data, obs_data_t *settings)
 		obs_data_set_string(tm_media_settings, "local_file", tm_path);
 
 		s->matte_source = obs_source_create_private(
-			"ffmpeg_source", NULL, tm_media_settings
-		);
+			"ffmpeg_source", NULL, tm_media_settings);
 		obs_data_release(tm_media_settings);
 
 		// no need to output sound from the matte video
@@ -124,16 +122,14 @@ static void *stinger_create(obs_data_t *settings, obs_source_t *source)
 	char *effect_file = obs_module_file("stinger_matte_transition.effect");
 	char *error_string = NULL;
 	obs_enter_graphics();
-	s->matte_effect = gs_effect_create_from_file(
-		effect_file, &error_string
-	);
+	s->matte_effect =
+		gs_effect_create_from_file(effect_file, &error_string);
 	obs_leave_graphics();
 
 	if (!s->matte_effect) {
 		blog(LOG_ERROR,
-			"Could not open stinger_matte_transition.effect: %s",
-			error_string
-		);
+		     "Could not open stinger_matte_transition.effect: %s",
+		     error_string);
 		bfree(error_string);
 		bfree(s);
 		return NULL;
@@ -168,8 +164,8 @@ static void stinger_destroy(void *data)
 	bfree(s);
 }
 
-void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
-	float t, uint32_t cx, uint32_t cy)
+void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b, float t,
+			  uint32_t cx, uint32_t cy)
 {
 	struct stinger_info *s = data;
 
@@ -202,7 +198,7 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b,
 	gs_effect_set_texture(s->ep_a_tex, a);
 	gs_effect_set_texture(s->ep_b_tex, b);
 	gs_effect_set_texture(s->ep_matte_tex,
-		gs_texrender_get_texture(s->matte_tex));
+			      gs_texrender_get_texture(s->matte_tex));
 	gs_effect_set_bool(s->ep_invert_matte, s->invert_matte);
 
 	while (gs_effect_loop(s->matte_effect, "StingerMatte"))
@@ -215,13 +211,13 @@ static void stinger_video_render(void *data, gs_effect_t *effect)
 
 	if (s->use_track_matte) {
 		obs_transition_video_render(s->source, stinger_matte_render);
-	}
-	else {
+	} else {
 		float t = obs_transition_get_time(s->source);
 		bool use_a = t < s->transition_point;
 
-	enum obs_transition_target target = use_a ? OBS_TRANSITION_SOURCE_A
-						  : OBS_TRANSITION_SOURCE_B;
+		enum obs_transition_target target =
+			use_a ? OBS_TRANSITION_SOURCE_A
+			      : OBS_TRANSITION_SOURCE_B;
 
 		if (!obs_transition_video_render_direct(s->source, target))
 			return;
@@ -374,14 +370,11 @@ static void stinger_transition_start(void *data)
 			uint64_t tm_duration_ns =
 				(uint64_t)calldata_int(&cd, "duration");
 
-			s->duration_ns = (
-				(tm_duration_ns > s->duration_ns) ?
-				(tm_duration_ns) : (s->duration_ns)
-			);
+			s->duration_ns = ((tm_duration_ns > s->duration_ns)
+						  ? (tm_duration_ns)
+						  : (s->duration_ns));
 
-			obs_source_add_active_child(
-				s->source, s->matte_source
-			);
+			obs_source_add_active_child(s->source, s->matte_source);
 		}
 
 		obs_transition_enable_fixed(
