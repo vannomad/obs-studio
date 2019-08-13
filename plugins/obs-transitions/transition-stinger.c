@@ -444,18 +444,24 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 	obs_property_set_visible(prop_matte_path, is_track_matte);
 	obs_property_set_visible(prop_invert_matte, is_track_matte);
 
-	if (type == TIMING_TRACK_MATTE)
+	if (type == TIMING_TRACK_MATTE) {
 		obs_property_set_description(
 			prop_transition_point,
 			obs_module_text("AudioTransitionPoint"));
-	else if (type == TIMING_TIME)
+	} else if (type == TIMING_TIME) {
 		obs_property_set_description(
 			prop_transition_point,
 			obs_module_text("TransitionPoint"));
-	else
+	} else {
 		obs_property_set_description(
 			prop_transition_point,
 			obs_module_text("TransitionPointFrame"));
+	}
+
+	bool uses_ms_prefix =
+		(type == TIMING_TIME || type == TIMING_TRACK_MATTE);
+	obs_property_int_set_suffix(p, (uses_ms_prefix ? " ms" : ""));
+
 	return true;
 }
 
@@ -480,10 +486,9 @@ static obs_properties_t *stinger_properties(void *data)
 
 	obs_property_set_modified_callback(p, transition_point_type_modified);
 
-	p = obs_properties_add_int(ppts, "transition_point",
-				   obs_module_text("TransitionPoint"), 0,
-				   120000, 1);
-	obs_property_int_set_suffix(p, " ms");
+	obs_properties_add_int(ppts, "transition_point",
+			       obs_module_text("TransitionPoint"), 0, 120000,
+			       1);
 
 	obs_properties_add_path(ppts, "track_matte_path",
 				obs_module_text("TrackMatteVideoFile"),
