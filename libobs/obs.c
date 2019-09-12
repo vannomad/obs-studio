@@ -814,6 +814,20 @@ static inline void obs_free_hotkeys(void)
 extern const struct obs_source_info scene_info;
 extern const struct obs_source_info group_info;
 
+static const char *submix_name(void *unused)
+{
+	UNUSED_PARAMETER(unused);
+	return "Audio line (internal use only)";
+}
+
+const struct obs_source_info audio_line_info = {
+	.id = "audio_line",
+	.type = OBS_SOURCE_TYPE_INPUT,
+	.output_flags = OBS_SOURCE_AUDIO | OBS_SOURCE_CAP_DISABLED |
+			OBS_SOURCE_SUBMIX,
+	.get_name = submix_name,
+};
+
 extern void log_system_info(void);
 
 static bool obs_init(const char *locale, const char *module_config_path,
@@ -845,6 +859,7 @@ static bool obs_init(const char *locale, const char *module_config_path,
 	obs->locale = bstrdup(locale);
 	obs_register_source(&scene_info);
 	obs_register_source(&group_info);
+	obs_register_source(&audio_line_info);
 	add_default_module_paths();
 	return true;
 }
@@ -1776,7 +1791,7 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 	sync = obs_data_get_int(source_data, "sync");
 	obs_source_set_sync_offset(source, sync);
 
-	obs_data_set_default_int(source_data, "mixers", 0xF);
+	obs_data_set_default_int(source_data, "mixers", 0x3F);
 	mixers = (uint32_t)obs_data_get_int(source_data, "mixers");
 	obs_source_set_audio_mixers(source, mixers);
 
@@ -1823,7 +1838,7 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 			 * automatically if they added monitoring by default in
 			 * version 24 */
 			monitoring_type = OBS_MONITORING_TYPE_MONITOR_ONLY;
-			obs_source_set_audio_mixers(source, 0xF);
+			obs_source_set_audio_mixers(source, 0x3F);
 		}
 	}
 	obs_source_set_monitoring_type(

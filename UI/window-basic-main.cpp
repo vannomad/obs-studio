@@ -1486,7 +1486,7 @@ void OBSBasic::ResetOutputs()
 				QTStr("Basic.Main.StartReplayBuffer"), this);
 			replayBufferButton->setCheckable(true);
 			connect(replayBufferButton.data(),
-				&QPushButton::clicked, this,
+				&QPushButton::toggled, this,
 				&OBSBasic::ReplayBufferClicked);
 
 			replayBufferButton->setProperty("themeID",
@@ -7424,7 +7424,11 @@ void OBSBasic::PauseRecording()
 	obs_output_t *output = outputHandler->fileOutput;
 
 	if (obs_output_pause(output, true)) {
+		pause->setAccessibleName(QTStr("Basic.Main.UnpauseRecording"));
+		pause->setToolTip(QTStr("Basic.Main.UnpauseRecording"));
+		pause->blockSignals(true);
 		pause->setChecked(true);
+		pause->blockSignals(false);
 		os_atomic_set_bool(&recording_paused, true);
 
 		if (api)
@@ -7443,7 +7447,11 @@ void OBSBasic::UnpauseRecording()
 	obs_output_t *output = outputHandler->fileOutput;
 
 	if (obs_output_pause(output, false)) {
+		pause->setAccessibleName(QTStr("Basic.Main.PauseRecording"));
+		pause->setToolTip(QTStr("Basic.Main.PauseRecording"));
+		pause->blockSignals(true);
 		pause->setChecked(false);
+		pause->blockSignals(false);
 		os_atomic_set_bool(&recording_paused, false);
 
 		if (api)
@@ -7459,19 +7467,10 @@ void OBSBasic::PauseToggled()
 	obs_output_t *output = outputHandler->fileOutput;
 	bool enable = !obs_output_paused(output);
 
-	if (obs_output_pause(output, enable)) {
-		os_atomic_set_bool(&recording_paused, enable);
-
-		if (api)
-			api->on_event(
-				enable ? OBS_FRONTEND_EVENT_RECORDING_PAUSED
-				       : OBS_FRONTEND_EVENT_RECORDING_UNPAUSED);
-
-		if (enable && os_atomic_load_bool(&replaybuf_active))
-			ShowReplayBufferPauseWarning();
-	} else {
-		pause->setChecked(!enable);
-	}
+	if (enable)
+		PauseRecording();
+	else
+		UnpauseRecording();
 }
 
 void OBSBasic::UpdatePause(bool activate)
@@ -7511,7 +7510,7 @@ void OBSBasic::UpdatePause(bool activate)
 		pause->setChecked(false);
 		pause->setProperty("themeID",
 				   QVariant(QStringLiteral("pauseIconSmall")));
-		connect(pause.data(), &QAbstractButton::clicked, this,
+		connect(pause.data(), &QAbstractButton::toggled, this,
 			&OBSBasic::PauseToggled);
 		ui->recordingLayout->addWidget(pause.data());
 	} else {
