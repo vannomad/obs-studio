@@ -115,6 +115,7 @@ private:
 	bool advancedChanged = false;
 	int pageIndex = 0;
 	bool loading = true;
+	bool forceAuthReload = false;
 	std::string savedTheme;
 
 	int lastSimpleRecQualityIdx = 0;
@@ -299,6 +300,8 @@ private:
 	QIcon GetVideoIcon() const;
 	QIcon GetHotkeysIcon() const;
 	QIcon GetAdvancedIcon() const;
+
+	int CurrentFLVTrack();
 
 private slots:
 	void on_theme_activated(int idx);

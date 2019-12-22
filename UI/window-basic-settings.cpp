@@ -260,9 +260,10 @@ void OBSBasicSettings::HookWidget(QWidget *widget, const char *signal,
 #define COMBO_CHANGED   SIGNAL(currentIndexChanged(int))
 #define EDIT_CHANGED    SIGNAL(textChanged(const QString &))
 #define CBEDIT_CHANGED  SIGNAL(editTextChanged(const QString &))
-#define CHECK_CHANGED   SIGNAL(toggled(bool))
+#define CHECK_CHANGED   SIGNAL(clicked(bool))
 #define SCROLL_CHANGED  SIGNAL(valueChanged(int))
 #define DSCROLL_CHANGED SIGNAL(valueChanged(double))
+#define TOGGLE_CHANGED  SIGNAL(toggled(bool))
 
 #define GENERAL_CHANGED SLOT(GeneralChanged())
 #define STREAM1_CHANGED SLOT(Stream1Changed())
@@ -336,6 +337,7 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->customServer,         EDIT_CHANGED,   STREAM1_CHANGED);
 	HookWidget(ui->key,                  EDIT_CHANGED,   STREAM1_CHANGED);
 	HookWidget(ui->bandwidthTestEnable,  CHECK_CHANGED,  STREAM1_CHANGED);
+	HookWidget(ui->twitchAddonDropdown,  COMBO_CHANGED,  STREAM1_CHANGED);
 	HookWidget(ui->useAuth,              CHECK_CHANGED,  STREAM1_CHANGED);
 	HookWidget(ui->authUsername,         EDIT_CHANGED,   STREAM1_CHANGED);
 	HookWidget(ui->authPw,               EDIT_CHANGED,   STREAM1_CHANGED);
@@ -380,6 +382,12 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	HookWidget(ui->advOutRecTrack4,      CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRecTrack5,      CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutRecTrack6,      CHECK_CHANGED,  OUTPUTS_CHANGED);
+	HookWidget(ui->flvTrack1,            CHECK_CHANGED,  OUTPUTS_CHANGED);
+	HookWidget(ui->flvTrack2,            CHECK_CHANGED,  OUTPUTS_CHANGED);
+	HookWidget(ui->flvTrack3,            CHECK_CHANGED,  OUTPUTS_CHANGED);
+	HookWidget(ui->flvTrack4,            CHECK_CHANGED,  OUTPUTS_CHANGED);
+	HookWidget(ui->flvTrack5,            CHECK_CHANGED,  OUTPUTS_CHANGED);
+	HookWidget(ui->flvTrack6,            CHECK_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutFFType,         COMBO_CHANGED,  OUTPUTS_CHANGED);
 	HookWidget(ui->advOutFFRecPath,      EDIT_CHANGED,   OUTPUTS_CHANGED);
 	HookWidget(ui->advOutFFNoSpace,      CHECK_CHANGED,  OUTPUTS_CHANGED);
@@ -725,68 +733,18 @@ OBSBasicSettings::OBSBasicSettings(QWidget *parent)
 	InitStreamPage();
 	LoadSettings(false);
 
-	ui->advOutTrack1->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track1"));
-	ui->advOutTrack2->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track2"));
-	ui->advOutTrack3->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track3"));
-	ui->advOutTrack4->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track4"));
-	ui->advOutTrack5->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track5"));
-	ui->advOutTrack6->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track6"));
-
-	ui->advOutRecTrack1->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track1"));
-	ui->advOutRecTrack2->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track2"));
-	ui->advOutRecTrack3->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track3"));
-	ui->advOutRecTrack4->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track4"));
-	ui->advOutRecTrack5->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track5"));
-	ui->advOutRecTrack6->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track6"));
-
-	ui->advOutFFTrack1->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track1"));
-	ui->advOutFFTrack2->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track2"));
-	ui->advOutFFTrack3->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track3"));
-	ui->advOutFFTrack4->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track4"));
-	ui->advOutFFTrack5->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track5"));
-	ui->advOutFFTrack6->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Audio.Track6"));
-
-	ui->snappingEnabled->setAccessibleName(
-		QTStr("Basic.Settings.General.Snapping"));
-	ui->systemTrayEnabled->setAccessibleName(
-		QTStr("Basic.Settings.General.SysTray"));
-	ui->label_31->setAccessibleName(
-		QTStr("Basic.Settings.Output.Adv.Recording.RecType"));
-	ui->streamDelayEnable->setAccessibleName(
-		QTStr("Basic.Settings.Advanced.StreamDelay"));
-	ui->reconnectEnable->setAccessibleName(
-		QTStr("Basic.Settings.Output.Reconnect"));
-
 	// Add warning checks to advanced output recording section controls
-	connect(ui->advOutRecTrack1, SIGNAL(toggled()), this,
+	connect(ui->advOutRecTrack1, SIGNAL(clicked()), this,
 		SLOT(AdvOutRecCheckWarnings()));
-	connect(ui->advOutRecTrack2, SIGNAL(toggled()), this,
+	connect(ui->advOutRecTrack2, SIGNAL(clicked()), this,
 		SLOT(AdvOutRecCheckWarnings()));
-	connect(ui->advOutRecTrack3, SIGNAL(toggled()), this,
+	connect(ui->advOutRecTrack3, SIGNAL(clicked()), this,
 		SLOT(AdvOutRecCheckWarnings()));
-	connect(ui->advOutRecTrack4, SIGNAL(toggled()), this,
+	connect(ui->advOutRecTrack4, SIGNAL(clicked()), this,
 		SLOT(AdvOutRecCheckWarnings()));
-	connect(ui->advOutRecTrack5, SIGNAL(toggled()), this,
+	connect(ui->advOutRecTrack5, SIGNAL(clicked()), this,
 		SLOT(AdvOutRecCheckWarnings()));
-	connect(ui->advOutRecTrack6, SIGNAL(toggled()), this,
+	connect(ui->advOutRecTrack6, SIGNAL(clicked()), this,
 		SLOT(AdvOutRecCheckWarnings()));
 	connect(ui->advOutRecFormat, SIGNAL(currentIndexChanged(int)), this,
 		SLOT(AdvOutRecCheckWarnings()));
@@ -1741,6 +1699,7 @@ void OBSBasicSettings::LoadAdvOutputRecordingSettings()
 	const char *muxCustom =
 		config_get_string(main->Config(), "AdvOut", "RecMuxerCustom");
 	int tracks = config_get_int(main->Config(), "AdvOut", "RecTracks");
+	int flvTrack = config_get_int(main->Config(), "AdvOut", "FLVTrack");
 
 	int typeIndex = (astrcmpi(type, "FFmpeg") == 0) ? 1 : 0;
 	ui->advOutRecType->setCurrentIndex(typeIndex);
@@ -1759,6 +1718,30 @@ void OBSBasicSettings::LoadAdvOutputRecordingSettings()
 	ui->advOutRecTrack4->setChecked(tracks & (1 << 3));
 	ui->advOutRecTrack5->setChecked(tracks & (1 << 4));
 	ui->advOutRecTrack6->setChecked(tracks & (1 << 5));
+
+	switch (flvTrack) {
+	case 1:
+		ui->flvTrack1->setChecked(true);
+		break;
+	case 2:
+		ui->flvTrack2->setChecked(true);
+		break;
+	case 3:
+		ui->flvTrack3->setChecked(true);
+		break;
+	case 4:
+		ui->flvTrack4->setChecked(true);
+		break;
+	case 5:
+		ui->flvTrack5->setChecked(true);
+		break;
+	case 6:
+		ui->flvTrack6->setChecked(true);
+		break;
+	default:
+		ui->flvTrack1->setChecked(true);
+		break;
+	}
 }
 
 void OBSBasicSettings::LoadAdvOutputRecordingEncoderProperties()
@@ -2238,9 +2221,9 @@ void OBSBasicSettings::LoadAudioSettings()
 
 	const char *str;
 	if (sampleRate == 48000)
-		str = "48khz";
+		str = "48 kHz";
 	else
-		str = "44.1khz";
+		str = "44.1 kHz";
 
 	int sampleRateIdx = ui->sampleRate->findText(str);
 	if (sampleRateIdx != -1)
@@ -2383,6 +2366,8 @@ void OBSBasicSettings::LoadAdvancedSettings()
 
 	ui->enableNewSocketLoop->setChecked(enableNewSocketLoop);
 	ui->enableLowLatencyMode->setChecked(enableLowLatencyMode);
+	ui->enableLowLatencyMode->setToolTip(
+		QTStr("Basic.Settings.Advanced.Network.TCPPacing.Tooltip"));
 
 	bool browserHWAccel = config_get_bool(App()->GlobalConfig(), "General",
 					      "BrowserHWAccel");
@@ -2775,7 +2760,7 @@ void OBSBasicSettings::SaveGeneralSettings()
 		themeData = DEFAULT_THEME;
 
 	if (WidgetChanged(ui->theme)) {
-		config_set_string(GetGlobalConfig(), "General", "CurrentTheme",
+		config_set_string(GetGlobalConfig(), "General", "CurrentTheme2",
 				  QT_TO_UTF8(themeData));
 
 		App()->SetTheme(themeData.toUtf8().constData());
@@ -3220,6 +3205,8 @@ void OBSBasicSettings::SaveOutputSettings()
 			(ui->advOutRecTrack5->isChecked() ? (1 << 4) : 0) |
 			(ui->advOutRecTrack6->isChecked() ? (1 << 5) : 0));
 
+	config_set_int(main->Config(), "AdvOut", "FLVTrack", CurrentFLVTrack());
+
 	config_set_bool(main->Config(), "AdvOut", "FFOutputToFile",
 			ui->advOutFFType->currentIndex() == 0 ? true : false);
 	SaveEdit(ui->advOutFFRecPath, "AdvOut", "FFFilePath");
@@ -3302,7 +3289,7 @@ void OBSBasicSettings::SaveAudioSettings()
 	}
 
 	int sampleRate = 44100;
-	if (sampleRateStr == "48khz")
+	if (sampleRateStr == "48 kHz")
 		sampleRate = 48000;
 
 	if (WidgetChanged(ui->sampleRate))
@@ -3502,6 +3489,12 @@ void OBSBasicSettings::closeEvent(QCloseEvent *event)
 {
 	if (Changed() && !QueryChanges())
 		event->ignore();
+
+	if (forceAuthReload) {
+		main->auth->Save();
+		main->auth->Load();
+		forceAuthReload = false;
+	}
 }
 
 void OBSBasicSettings::on_theme_activated(int idx)
@@ -3542,7 +3535,8 @@ void OBSBasicSettings::on_buttonBox_clicked(QAbstractButton *button)
 	if (val == QDialogButtonBox::AcceptRole ||
 	    val == QDialogButtonBox::RejectRole) {
 		if (val == QDialogButtonBox::RejectRole) {
-			App()->SetTheme(savedTheme);
+			if (savedTheme != App()->GetTheme())
+				App()->SetTheme(savedTheme);
 #ifdef _WIN32
 			if (toggleAero)
 				SetAeroEnabled(!aeroWasDisabled);
@@ -4002,18 +3996,20 @@ void OBSBasicSettings::AdvOutRecCheckWarnings()
 		Checked(ui->advOutRecTrack3) + Checked(ui->advOutRecTrack4) +
 		Checked(ui->advOutRecTrack5) + Checked(ui->advOutRecTrack6);
 
-	if (tracks == 0) {
-		errorMsg = QTStr("OutputWarnings.NoTracksSelected");
-
-	} else if (tracks > 1) {
-		warningMsg = QTStr("OutputWarnings.MultiTrackRecording");
-	}
-
 	bool useStreamEncoder = ui->advOutRecEncoder->currentIndex() == 0;
 	if (useStreamEncoder) {
 		if (!warningMsg.isEmpty())
 			warningMsg += "\n\n";
 		warningMsg += QTStr("OutputWarnings.CannotPause");
+	}
+
+	if (ui->advOutRecFormat->currentText().compare("flv") == 0) {
+		ui->advRecTrackWidget->setCurrentWidget(ui->flvTracks);
+	} else {
+		ui->advRecTrackWidget->setCurrentWidget(ui->recTracks);
+
+		if (tracks == 0)
+			errorMsg = QTStr("OutputWarnings.NoTracksSelected");
 	}
 
 	if (ui->advOutRecFormat->currentText().compare("mp4") == 0 ||
@@ -4657,4 +4653,22 @@ void OBSBasicSettings::SetHotkeysIcon(const QIcon &icon)
 void OBSBasicSettings::SetAdvancedIcon(const QIcon &icon)
 {
 	ui->listWidget->item(6)->setIcon(icon);
+}
+
+int OBSBasicSettings::CurrentFLVTrack()
+{
+	if (ui->flvTrack1->isChecked())
+		return 1;
+	else if (ui->flvTrack2->isChecked())
+		return 2;
+	else if (ui->flvTrack3->isChecked())
+		return 3;
+	else if (ui->flvTrack4->isChecked())
+		return 4;
+	else if (ui->flvTrack5->isChecked())
+		return 5;
+	else if (ui->flvTrack6->isChecked())
+		return 6;
+
+	return 0;
 }

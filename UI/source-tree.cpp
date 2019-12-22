@@ -57,23 +57,35 @@ SourceTreeItem::SourceTreeItem(SourceTree *tree_, OBSSceneItem sceneitem_)
 
 	obs_data_release(privData);
 
+	OBSBasic *main = reinterpret_cast<OBSBasic *>(App()->GetMainWindow());
+	const char *id = obs_source_get_id(source);
+	QIcon icon;
+
+	if (strcmp(id, "scene") == 0)
+		icon = main->GetSceneIcon();
+	else if (strcmp(id, "group") == 0)
+		icon = main->GetGroupIcon();
+	else
+		icon = main->GetSourceIcon(id);
+
+	QPixmap pixmap = icon.pixmap(QSize(16, 16));
+
+	QLabel *iconLabel = new QLabel();
+	iconLabel->setPixmap(pixmap);
+	iconLabel->setFixedSize(16, 16);
+	iconLabel->setStyleSheet("background: none");
+
 	vis = new VisibilityCheckBox();
 	vis->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 	vis->setFixedSize(16, 16);
 	vis->setChecked(obs_sceneitem_visible(sceneitem));
 	vis->setStyleSheet("background: none");
-	vis->setAccessibleName(QTStr("Basic.Main.Sources.Visibility"));
-	vis->setAccessibleDescription(
-		QTStr("Basic.Main.Sources.VisibilityDescription").arg(name));
 
 	lock = new LockedCheckBox();
 	lock->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 	lock->setFixedSize(16, 16);
 	lock->setChecked(obs_sceneitem_locked(sceneitem));
 	lock->setStyleSheet("background: none");
-	lock->setAccessibleName(QTStr("Basic.Main.Sources.Lock"));
-	lock->setAccessibleDescription(
-		QTStr("Basic.Main.Sources.LockDescription").arg(name));
 
 	label = new QLabel(QT_UTF8(name));
 	label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -86,11 +98,13 @@ SourceTreeItem::SourceTreeItem(SourceTree *tree_, OBSSceneItem sceneitem_)
 #endif
 
 	boxLayout = new QHBoxLayout();
-	boxLayout->setContentsMargins(1, 1, 1, 1);
-	boxLayout->setSpacing(1);
+
+	boxLayout->setContentsMargins(0, 0, 0, 0);
+	boxLayout->addWidget(iconLabel);
+	boxLayout->addSpacing(2);
 	boxLayout->addWidget(label);
 	boxLayout->addWidget(vis);
-	boxLayout->setSpacing(2);
+	boxLayout->addSpacing(1);
 	boxLayout->addWidget(lock);
 #ifdef __APPLE__
 	/* Hack: Fixes a bug where scrollbars would be above the lock icon */
@@ -113,8 +127,8 @@ SourceTreeItem::SourceTreeItem(SourceTree *tree_, OBSSceneItem sceneitem_)
 		obs_sceneitem_set_locked(sceneitem, checked);
 	};
 
-	connect(vis, &QAbstractButton::toggled, setItemVisible);
-	connect(lock, &QAbstractButton::toggled, setItemLocked);
+	connect(vis, &QAbstractButton::clicked, setItemVisible);
+	connect(lock, &QAbstractButton::clicked, setItemLocked);
 }
 
 void SourceTreeItem::paintEvent(QPaintEvent *event)
@@ -303,7 +317,7 @@ void SourceTreeItem::EnterEditMode()
 	editor->setStyleSheet("background: none");
 	editor->selectAll();
 	editor->installEventFilter(this);
-	boxLayout->insertWidget(1, editor);
+	boxLayout->insertWidget(2, editor);
 	setFocusProxy(editor);
 }
 
@@ -322,7 +336,7 @@ void SourceTreeItem::ExitEditMode(bool save)
 	delete editor;
 	editor = nullptr;
 	setFocusPolicy(Qt::NoFocus);
-	boxLayout->insertWidget(1, label);
+	boxLayout->insertWidget(2, label);
 
 	/* ----------------------------------------- */
 	/* check for empty string                    */
@@ -949,6 +963,13 @@ SourceTree::SourceTree(QWidget *parent_) : QListView(parent_)
 	UpdateNoSourcesMessage();
 	connect(App(), &OBSApp::StyleChanged, this,
 		&SourceTree::UpdateNoSourcesMessage);
+	connect(App(), &OBSApp::StyleChanged, this, &SourceTree::UpdateIcons);
+}
+
+void SourceTree::UpdateIcons()
+{
+	SourceTreeModel *stm = GetStm();
+	stm->SceneChanged();
 }
 
 void SourceTree::ResetWidgets()
