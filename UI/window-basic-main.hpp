@@ -170,6 +170,7 @@ class OBSBasic : public OBSMainWindow {
 		DropType_Image,
 		DropType_Media,
 		DropType_Html,
+		DropType_Url,
 	};
 
 private:
@@ -390,7 +391,7 @@ private:
 	void ClearQuickTransitionWidgets();
 	void RefreshQuickTransitions();
 	void DisableQuickTransitionWidgets();
-	void EnableQuickTransitionWidgets();
+	void EnableTransitionWidgets(bool enable);
 	void CreateDefaultQuickTransitions();
 
 	QMenu *CreatePerSceneTransitionMenu();
@@ -435,6 +436,9 @@ private:
 	inline void OnDeactivate();
 
 	void AddDropSource(const char *file, DropType image);
+	void AddDropURL(const char *url, QString &name, obs_data_t *settings,
+			const obs_video_info &ovi);
+	void ConfirmDropUrl(const QString &url);
 	void dragEnterEvent(QDragEnterEvent *event) override;
 	void dragLeaveEvent(QDragLeaveEvent *event) override;
 	void dragMoveEvent(QDragMoveEvent *event) override;
@@ -502,6 +506,11 @@ private:
 	QIcon GetBrowserIcon() const;
 	QIcon GetDefaultIcon() const;
 
+	QSlider *tBar;
+	bool tBarActive = false;
+	bool tBarDown = false;
+	void EnableTBar();
+
 public slots:
 	void DeferSaveBegin();
 	void DeferSaveEnd();
@@ -541,7 +550,8 @@ public slots:
 	void TransitionToScene(OBSScene scene, bool force = false);
 	void TransitionToScene(OBSSource scene, bool force = false,
 			       bool quickTransition = false,
-			       int quickDuration = 0, bool black = false);
+			       int quickDuration = 0, bool black = false,
+			       bool manual = false);
 	void SetCurrentScene(OBSSource scene, bool force = false);
 
 	bool AddSceneCollection(bool create_new,
@@ -645,6 +655,9 @@ private slots:
 	void SetSceneIcon(const QIcon &icon);
 	void SetDefaultIcon(const QIcon &icon);
 
+	void TBarChanged(int value);
+	void TBarReleased();
+
 private:
 	/* OBS Callbacks */
 	static void SceneReordered(void *data, calldata_t *params);
@@ -673,6 +686,9 @@ private:
 
 	void UpdatePause(bool activate = true);
 	void UpdateReplayBuffer(bool activate = true);
+
+	bool OutputPathValid();
+	void OutputPathInvalidMessage();
 
 	bool LowDiskSpace();
 	void DiskSpaceMessage();

@@ -289,6 +289,7 @@ set(libobs_graphics_SOURCES
 	graphics/math-extra.c
 	graphics/graphics-imports.c)
 set(libobs_graphics_HEADERS
+	graphics/half.h
 	graphics/plane.h
 	graphics/quat.h
 	graphics/input.h
@@ -474,7 +475,7 @@ target_compile_definitions(libobs
 	PUBLIC
 		HAVE_OBSCONFIG_H)
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64le")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(powerpc|ppc)64(le)?")
 	target_compile_options(libobs
 		PUBLIC
 			-mvsx)

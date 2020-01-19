@@ -1633,15 +1633,6 @@ void OBSBasic::OBSInit()
 	editPropertiesMode = config_get_bool(
 		App()->GlobalConfig(), "BasicWindow", "EditPropertiesMode");
 
-	if (!opt_studio_mode) {
-		SetPreviewProgramMode(config_get_bool(App()->GlobalConfig(),
-						      "BasicWindow",
-						      "PreviewProgramMode"));
-	} else {
-		SetPreviewProgramMode(true);
-		opt_studio_mode = false;
-	}
-
 #define SET_VISIBILITY(name, control)                                         \
 	do {                                                                  \
 		if (config_has_user_value(App()->GlobalConfig(),              \
@@ -1823,6 +1814,15 @@ void OBSBasic::OBSInit()
 				SLOT(OpenMultiviewWindow()));
 
 	ui->sources->UpdateIcons();
+
+	if (!opt_studio_mode) {
+		SetPreviewProgramMode(config_get_bool(App()->GlobalConfig(),
+						      "BasicWindow",
+						      "PreviewProgramMode"));
+	} else {
+		SetPreviewProgramMode(true);
+		opt_studio_mode = false;
+	}
 
 #if !defined(_WIN32) && !defined(__APPLE__)
 	delete ui->actionShowCrashLogs;
@@ -5416,6 +5416,12 @@ void OBSBasic::StartRecording()
 	if (disableOutputsRef)
 		return;
 
+	if (!OutputPathValid()) {
+		OutputPathInvalidMessage();
+		ui->recordButton->setChecked(false);
+		return;
+	}
+
 	if (LowDiskSpace()) {
 		DiskSpaceMessage();
 		ui->recordButton->setChecked(false);
@@ -7653,6 +7659,20 @@ const char *OBSBasic::GetCurrentOutputPath()
 	}
 
 	return path;
+}
+
+void OBSBasic::OutputPathInvalidMessage()
+{
+	blog(LOG_ERROR, "Recording stopped because of bad output path");
+
+	OBSMessageBox::critical(this, QTStr("Output.BadPath.Title"),
+				QTStr("Output.BadPath.Text"));
+}
+
+bool OBSBasic::OutputPathValid()
+{
+	const char *path = GetCurrentOutputPath();
+	return path && *path && QDir(path).exists();
 }
 
 void OBSBasic::DiskSpaceMessage()
