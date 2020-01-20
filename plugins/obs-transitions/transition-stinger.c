@@ -466,9 +466,19 @@ static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_properties_get(ppts, "track_matte_path");
 	obs_property_t *prop_invert_matte =
 		obs_properties_get(ppts, "invert_matte");
+	obs_property_t *prop_tp_type = obs_properties_get(ppts, "tp_type");
 
 	obs_property_set_visible(prop_matte_path, is_track_matte);
 	obs_property_set_visible(prop_invert_matte, is_track_matte);
+
+	if (is_track_matte) {
+		obs_property_set_description(
+			prop_tp_type,
+			obs_module_text("AudioTransitionPointType"));
+	} else {
+		obs_property_set_description(
+			prop_tp_type, obs_module_text("TransitionPointType"));
+	}
 
 	UNUSED_PARAMETER(p);
 	return true;
