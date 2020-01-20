@@ -78,7 +78,11 @@ static void stinger_update(void *data, obs_data_t *settings)
 		(obs_data_get_int(settings, "tp_type") == TIMING_TRACK_MATTE);
 	s->invert_matte = obs_data_get_bool(settings, "invert_matte");
 
-	obs_source_release(s->matte_source);
+	if (s->matte_source) {
+		obs_source_release(s->matte_source);
+		s->matte_source = NULL;
+	}
+
 	if (s->use_track_matte) {
 		obs_data_t *tm_media_settings = obs_data_create();
 		obs_data_set_string(tm_media_settings, "local_file", tm_path);
