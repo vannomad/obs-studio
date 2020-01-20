@@ -206,6 +206,8 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b, float t,
 
 	while (gs_effect_loop(s->matte_effect, "StingerMatte"))
 		gs_draw_sprite(NULL, 0, cx, cy);
+
+	UNUSED_PARAMETER(t);
 }
 
 static void stinger_video_render(void *data, gs_effect_t *effect)
