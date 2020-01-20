@@ -2,7 +2,6 @@
 
 #define TIMING_TIME 0
 #define TIMING_FRAME 1
-#define TIMING_TRACK_MATTE 2
 
 enum fade_style { FADE_STYLE_FADE_OUT_FADE_IN, FADE_STYLE_CROSS_FADE };
 
@@ -72,10 +71,7 @@ static void stinger_update(void *data, obs_data_t *settings)
 	else
 		s->transition_point_ns = (uint64_t)(point * 1000000LL);
 
-	const char *tm_path = obs_data_get_string(settings, "track_matte_path");
-
-	s->use_track_matte =
-		(obs_data_get_int(settings, "tp_type") == TIMING_TRACK_MATTE);
+	s->use_track_matte = obs_data_get_bool(settings, "use_track_matte");
 	s->invert_matte = obs_data_get_bool(settings, "invert_matte");
 
 	if (s->matte_source) {
@@ -84,6 +80,9 @@ static void stinger_update(void *data, obs_data_t *settings)
 	}
 
 	if (s->use_track_matte) {
+		const char *tm_path =
+			obs_data_get_string(settings, "track_matte_path");
+
 		obs_data_t *tm_media_settings = obs_data_create();
 		obs_data_set_string(tm_media_settings, "local_file", tm_path);
 
@@ -440,20 +439,8 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 
 	obs_property_t *prop_transition_point =
 		obs_properties_get(ppts, "transition_point");
-	obs_property_t *prop_matte_path =
-		obs_properties_get(ppts, "track_matte_path");
-	obs_property_t *prop_invert_matte =
-		obs_properties_get(ppts, "invert_matte");
 
-	bool is_track_matte = (type == TIMING_TRACK_MATTE);
-	obs_property_set_visible(prop_matte_path, is_track_matte);
-	obs_property_set_visible(prop_invert_matte, is_track_matte);
-
-	if (type == TIMING_TRACK_MATTE) {
-		obs_property_set_description(
-			prop_transition_point,
-			obs_module_text("AudioTransitionPoint"));
-	} else if (type == TIMING_TIME) {
+	if (type == TIMING_TIME) {
 		obs_property_set_description(
 			prop_transition_point,
 			obs_module_text("TransitionPoint"));
@@ -463,10 +450,25 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 			obs_module_text("TransitionPointFrame"));
 	}
 
-	bool uses_ms_prefix =
-		(type == TIMING_TIME || type == TIMING_TRACK_MATTE);
+	bool uses_ms_prefix = (type == TIMING_TIME);
 	obs_property_int_set_suffix(p, (uses_ms_prefix ? " ms" : ""));
 
+	return true;
+}
+
+static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
+				     obs_data_t *s)
+{
+	bool is_track_matte = obs_data_get_bool(s, "use_track_matte");
+	obs_property_t *prop_matte_path =
+		obs_properties_get(ppts, "track_matte_path");
+	obs_property_t *prop_invert_matte =
+		obs_properties_get(ppts, "invert_matte");
+
+	obs_property_set_visible(prop_matte_path, is_track_matte);
+	obs_property_set_visible(prop_invert_matte, is_track_matte);
+
+	UNUSED_PARAMETER(p);
 	return true;
 }
 
@@ -478,6 +480,7 @@ static obs_properties_t *stinger_properties(void *data)
 
 	obs_properties_add_path(ppts, "path", obs_module_text("VideoFile"),
 				OBS_PATH_FILE, FILE_FILTER, NULL);
+
 	obs_property_t *p = obs_properties_add_list(
 		ppts, "tp_type", obs_module_text("TransitionPointType"),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -485,15 +488,17 @@ static obs_properties_t *stinger_properties(void *data)
 				  TIMING_TIME);
 	obs_property_list_add_int(
 		p, obs_module_text("TransitionPointTypeFrame"), TIMING_FRAME);
-	obs_property_list_add_int(
-		p, obs_module_text("TransitionPointTypeTrackMatte"),
-		TIMING_TRACK_MATTE);
 
 	obs_property_set_modified_callback(p, transition_point_type_modified);
 
 	obs_properties_add_int(ppts, "transition_point",
 			       obs_module_text("TransitionPoint"), 0, 120000,
 			       1);
+
+	p = obs_properties_add_bool(ppts, "use_track_matte",
+				    obs_module_text("TrackMatteEnabled"));
+
+	obs_property_set_modified_callback(p, use_track_matte_modified);
 
 	obs_properties_add_path(ppts, "track_matte_path",
 				obs_module_text("TrackMatteVideoFile"),
