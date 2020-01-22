@@ -3,6 +3,10 @@
 #define TIMING_TIME 0
 #define TIMING_FRAME 1
 
+#define MATTE_LAYOUT_HORIZONTAL 0
+#define MATTE_LAYOUT_VERTICAL 1
+#define MATTE_LAYOUT_SEPARATE_FILE 2
+
 enum fade_style { FADE_STYLE_FADE_OUT_FADE_IN, FADE_STYLE_CROSS_FADE };
 
 struct stinger_info {
@@ -21,6 +25,9 @@ struct stinger_info {
 	bool transitioning;
 	bool transition_point_is_frame;
 	bool use_track_matte;
+	int matte_layout;
+	float matte_width_factor;
+	float matte_height_factor;
 	bool invert_matte;
 	int monitoring_type;
 	enum fade_style fade_style;
@@ -72,6 +79,11 @@ static void stinger_update(void *data, obs_data_t *settings)
 		s->transition_point_ns = (uint64_t)(point * 1000000LL);
 
 	s->use_track_matte = obs_data_get_bool(settings, "use_track_matte");
+	s->matte_layout = obs_data_get_int(settings, "track_matte_layout");
+	s->matte_width_factor =
+		(s->matte_layout == MATTE_LAYOUT_HORIZONTAL ? 2.0f : 1.0f);
+	s->matte_height_factor =
+		(s->matte_layout == MATTE_LAYOUT_VERTICAL ? 2.0f : 1.0f);
 	s->invert_matte = obs_data_get_bool(settings, "invert_matte");
 
 	if (s->matte_source) {
@@ -79,7 +91,8 @@ static void stinger_update(void *data, obs_data_t *settings)
 		s->matte_source = NULL;
 	}
 
-	if (s->use_track_matte) {
+	if (s->use_track_matte &&
+	    s->matte_layout == MATTE_LAYOUT_SEPARATE_FILE) {
 		const char *tm_path =
 			obs_data_get_string(settings, "track_matte_path");
 
@@ -172,26 +185,38 @@ void stinger_matte_render(void *data, gs_texture_t *a, gs_texture_t *b, float t,
 {
 	struct stinger_info *s = data;
 
-	uint32_t matte_cx, matte_cy;
-	float scale_x, scale_y;
-
 	struct vec4 background;
 	vec4_zero(&background);
 
-	gs_texrender_reset(s->matte_tex);
+	obs_source_t *matte_source =
+		(s->matte_layout == MATTE_LAYOUT_SEPARATE_FILE
+			 ? s->matte_source
+			 : s->media_source);
+
+	float matte_cx = (float)obs_source_get_width(matte_source) /
+			 s->matte_width_factor;
+	float matte_cy = (float)obs_source_get_height(matte_source) /
+			 s->matte_height_factor;
+
+	float width_offset = (s->matte_layout == MATTE_LAYOUT_HORIZONTAL
+				      ? (-matte_cx)
+				      : 0.0f);
+	float height_offset =
+		(s->matte_layout == MATTE_LAYOUT_VERTICAL ? (-matte_cy) : 0.0f);
 
 	// Track matte media render
-	matte_cx = obs_source_get_width(s->matte_source);
-	matte_cy = obs_source_get_height(s->matte_source);
+	gs_texrender_reset(s->matte_tex);
 	if (matte_cx > 0 && matte_cy > 0) {
-		scale_x = (float)cx / (float)matte_cx;
-		scale_y = (float)cy / (float)matte_cy;
+		float scale_x = (float)cx / matte_cx;
+		float scale_y = (float)cy / matte_cy;
 
 		if (gs_texrender_begin(s->matte_tex, cx, cy)) {
 			gs_matrix_push();
 			gs_matrix_scale3f(scale_x, scale_y, 1.0f);
+			gs_matrix_translate3f(width_offset, height_offset,
+					      0.0f);
 			gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
-			obs_source_video_render(s->matte_source);
+			obs_source_video_render(matte_source);
 			gs_matrix_pop();
 
 			gs_texrender_end(s->matte_tex);
@@ -239,8 +264,8 @@ static void stinger_video_render(void *data, gs_effect_t *effect)
 	if (!media_cx || !media_cy)
 		return;
 
-	float scale_x = source_cx / (float)media_cx;
-	float scale_y = source_cy / (float)media_cy;
+	float scale_x = source_cx / ((float)media_cx / s->matte_width_factor);
+	float scale_y = source_cy / ((float)media_cy / s->matte_height_factor);
 
 	gs_matrix_push();
 	gs_matrix_scale3f(scale_x, scale_y, 1.0f);
@@ -458,6 +483,20 @@ static bool transition_point_type_modified(obs_properties_t *ppts,
 	return true;
 }
 
+static bool track_matte_layout_modified(obs_properties_t *ppts,
+					obs_property_t *p, obs_data_t *s)
+{
+	int matte_layout = obs_data_get_int(s, "track_matte_layout");
+	obs_property_t *prop_matte_path =
+		obs_properties_get(ppts, "track_matte_path");
+
+	bool uses_separate_file = (matte_layout == MATTE_LAYOUT_SEPARATE_FILE);
+	obs_property_set_visible(prop_matte_path, uses_separate_file);
+
+	UNUSED_PARAMETER(p);
+	return true;
+}
+
 static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
 				     obs_data_t *s)
 {
@@ -466,10 +505,13 @@ static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_properties_get(ppts, "track_matte_path");
 	obs_property_t *prop_invert_matte =
 		obs_properties_get(ppts, "invert_matte");
+	obs_property_t *prop_matte_layout =
+		obs_properties_get(ppts, "track_matte_layout");
 	obs_property_t *prop_tp_type = obs_properties_get(ppts, "tp_type");
 
-	obs_property_set_visible(prop_matte_path, is_track_matte);
+	obs_property_set_visible(prop_matte_layout, is_track_matte);
 	obs_property_set_visible(prop_invert_matte, is_track_matte);
+	obs_property_set_visible(prop_matte_path, is_track_matte);
 
 	if (is_track_matte) {
 		obs_property_set_description(
@@ -479,6 +521,8 @@ static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_property_set_description(
 			prop_tp_type, obs_module_text("TransitionPointType"));
 	}
+
+	track_matte_layout_modified(ppts, NULL, s);
 
 	UNUSED_PARAMETER(p);
 	return true;
@@ -511,6 +555,21 @@ static obs_properties_t *stinger_properties(void *data)
 				    obs_module_text("TrackMatteEnabled"));
 
 	obs_property_set_modified_callback(p, use_track_matte_modified);
+
+	p = obs_properties_add_list(ppts, "track_matte_layout",
+				    obs_module_text("TrackMatteLayout"),
+				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p,
+				  obs_module_text("TrackMatteLayoutHorizontal"),
+				  MATTE_LAYOUT_HORIZONTAL);
+	obs_property_list_add_int(p,
+				  obs_module_text("TrackMatteLayoutVertical"),
+				  MATTE_LAYOUT_VERTICAL);
+	obs_property_list_add_int(
+		p, obs_module_text("TrackMatteLayoutSeparateFile"),
+		MATTE_LAYOUT_SEPARATE_FILE);
+
+	obs_property_set_modified_callback(p, track_matte_layout_modified);
 
 	obs_properties_add_path(ppts, "track_matte_path",
 				obs_module_text("TrackMatteVideoFile"),
