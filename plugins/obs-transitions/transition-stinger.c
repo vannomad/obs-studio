@@ -24,13 +24,14 @@ struct stinger_info {
 	float transition_b_mul;
 	bool transitioning;
 	bool transition_point_is_frame;
-	bool use_track_matte;
+	int monitoring_type;
+	enum fade_style fade_style;
+
+	bool track_matte_enabled;
 	int matte_layout;
 	float matte_width_factor;
 	float matte_height_factor;
 	bool invert_matte;
-	int monitoring_type;
-	enum fade_style fade_style;
 
 	gs_effect_t *matte_effect;
 	gs_eparam_t *ep_a_tex;
@@ -78,7 +79,8 @@ static void stinger_update(void *data, obs_data_t *settings)
 	else
 		s->transition_point_ns = (uint64_t)(point * 1000000LL);
 
-	s->use_track_matte = obs_data_get_bool(settings, "use_track_matte");
+	s->track_matte_enabled =
+		obs_data_get_bool(settings, "track_matte_enabled");
 	s->matte_layout = obs_data_get_int(settings, "track_matte_layout");
 	s->matte_width_factor =
 		(s->matte_layout == MATTE_LAYOUT_HORIZONTAL ? 2.0f : 1.0f);
@@ -91,7 +93,7 @@ static void stinger_update(void *data, obs_data_t *settings)
 		s->matte_source = NULL;
 	}
 
-	if (s->use_track_matte &&
+	if (s->track_matte_enabled &&
 	    s->matte_layout == MATTE_LAYOUT_SEPARATE_FILE) {
 		const char *tm_path =
 			obs_data_get_string(settings, "track_matte_path");
@@ -239,7 +241,7 @@ static void stinger_video_render(void *data, gs_effect_t *effect)
 {
 	struct stinger_info *s = data;
 
-	if (s->use_track_matte) {
+	if (s->track_matte_enabled) {
 		obs_transition_video_render(s->source, stinger_matte_render);
 	} else {
 		float t = obs_transition_get_time(s->source);
@@ -396,7 +398,7 @@ static void stinger_transition_start(void *data)
 		s->transition_a_mul = (1.0f / s->transition_point);
 		s->transition_b_mul = (1.0f / (1.0f - s->transition_point));
 
-		if (s->use_track_matte) {
+		if (s->track_matte_enabled) {
 			proc_handler_call(matte_ph, "get_duration", &cd);
 			uint64_t tm_duration_ns =
 				(uint64_t)calldata_int(&cd, "duration");
@@ -497,23 +499,13 @@ static bool track_matte_layout_modified(obs_properties_t *ppts,
 	return true;
 }
 
-static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
-				     obs_data_t *s)
+static bool track_matte_enabled_modified(obs_properties_t *ppts,
+					 obs_property_t *p, obs_data_t *s)
 {
-	bool is_track_matte = obs_data_get_bool(s, "use_track_matte");
-	obs_property_t *prop_matte_path =
-		obs_properties_get(ppts, "track_matte_path");
-	obs_property_t *prop_invert_matte =
-		obs_properties_get(ppts, "invert_matte");
-	obs_property_t *prop_matte_layout =
-		obs_properties_get(ppts, "track_matte_layout");
+	bool track_matte_enabled = obs_data_get_bool(s, "track_matte_enabled");
 	obs_property_t *prop_tp_type = obs_properties_get(ppts, "tp_type");
 
-	obs_property_set_visible(prop_matte_layout, is_track_matte);
-	obs_property_set_visible(prop_invert_matte, is_track_matte);
-	obs_property_set_visible(prop_matte_path, is_track_matte);
-
-	if (is_track_matte) {
+	if (track_matte_enabled) {
 		obs_property_set_description(
 			prop_tp_type,
 			obs_module_text("AudioTransitionPointType"));
@@ -521,8 +513,6 @@ static bool use_track_matte_modified(obs_properties_t *ppts, obs_property_t *p,
 		obs_property_set_description(
 			prop_tp_type, obs_module_text("TransitionPointType"));
 	}
-
-	track_matte_layout_modified(ppts, NULL, s);
 
 	UNUSED_PARAMETER(p);
 	return true;
@@ -534,6 +524,7 @@ static obs_properties_t *stinger_properties(void *data)
 
 	obs_properties_set_flags(ppts, OBS_PROPERTIES_DEFER_UPDATE);
 
+	// main stinger settings
 	obs_properties_add_path(ppts, "path", obs_module_text("VideoFile"),
 				OBS_PATH_FILE, FILE_FILTER, NULL);
 
@@ -551,33 +542,45 @@ static obs_properties_t *stinger_properties(void *data)
 			       obs_module_text("TransitionPoint"), 0, 120000,
 			       1);
 
-	p = obs_properties_add_bool(ppts, "use_track_matte",
-				    obs_module_text("TrackMatteEnabled"));
+	// track matte properties
+	{
+		obs_properties_t *track_matte_group = obs_properties_create();
 
-	obs_property_set_modified_callback(p, use_track_matte_modified);
+		p = obs_properties_add_list(track_matte_group,
+					    "track_matte_layout",
+					    obs_module_text("TrackMatteLayout"),
+					    OBS_COMBO_TYPE_LIST,
+					    OBS_COMBO_FORMAT_INT);
+		obs_property_list_add_int(
+			p, obs_module_text("TrackMatteLayoutHorizontal"),
+			MATTE_LAYOUT_HORIZONTAL);
+		obs_property_list_add_int(
+			p, obs_module_text("TrackMatteLayoutVertical"),
+			MATTE_LAYOUT_VERTICAL);
+		obs_property_list_add_int(
+			p, obs_module_text("TrackMatteLayoutSeparateFile"),
+			MATTE_LAYOUT_SEPARATE_FILE);
 
-	p = obs_properties_add_list(ppts, "track_matte_layout",
-				    obs_module_text("TrackMatteLayout"),
-				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(p,
-				  obs_module_text("TrackMatteLayoutHorizontal"),
-				  MATTE_LAYOUT_HORIZONTAL);
-	obs_property_list_add_int(p,
-				  obs_module_text("TrackMatteLayoutVertical"),
-				  MATTE_LAYOUT_VERTICAL);
-	obs_property_list_add_int(
-		p, obs_module_text("TrackMatteLayoutSeparateFile"),
-		MATTE_LAYOUT_SEPARATE_FILE);
+		obs_property_set_modified_callback(p,
+						   track_matte_layout_modified);
 
-	obs_property_set_modified_callback(p, track_matte_layout_modified);
+		obs_properties_add_path(track_matte_group, "track_matte_path",
+					obs_module_text("TrackMatteVideoFile"),
+					OBS_PATH_FILE, FILE_FILTER, NULL);
 
-	obs_properties_add_path(ppts, "track_matte_path",
-				obs_module_text("TrackMatteVideoFile"),
-				OBS_PATH_FILE, FILE_FILTER, NULL);
+		obs_properties_add_bool(track_matte_group, "invert_matte",
+					obs_module_text("InvertTrackMatte"));
 
-	obs_properties_add_bool(ppts, "invert_matte",
-				obs_module_text("InvertTrackMatte"));
+		p = obs_properties_add_group(
+			ppts, "track_matte_enabled",
+			obs_module_text("TrackMatteEnabled"),
+			OBS_GROUP_CHECKABLE, track_matte_group);
 
+		obs_property_set_modified_callback(
+			p, track_matte_enabled_modified);
+	}
+
+	// audio output settings
 	obs_property_t *monitor_list = obs_properties_add_list(
 		ppts, "audio_monitoring", obs_module_text("AudioMonitoring"),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -591,6 +594,7 @@ static obs_properties_t *stinger_properties(void *data)
 				  obs_module_text("AudioMonitoring.Both"),
 				  OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
+	// audio fade settings
 	obs_property_t *audio_fade_style = obs_properties_add_list(
 		ppts, "audio_fade_style", obs_module_text("AudioFadeStyle"),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
